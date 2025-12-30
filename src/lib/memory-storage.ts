@@ -8,6 +8,7 @@ export interface Memory {
   photos: string[]
   musicUrl?: string
   customSlug?: string
+  emoji?: string
   createdAt: string
 }
 

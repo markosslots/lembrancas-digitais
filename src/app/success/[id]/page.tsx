@@ -1,25 +1,30 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { use, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Heart, Copy, Download, Share2, QrCode as QrCodeIcon, Check, ArrowLeft } from "lucide-react"
+import { Heart, Copy, Download, QrCode as QrCodeIcon, Check, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import QRCode from "qrcode"
 
-export default function SuccessPage() {
-  const params = useParams()
-  const memoryId = params.id as string
+export default function SuccessPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params)
   const [qrCodeUrl, setQrCodeUrl] = useState("")
   const [copied, setCopied] = useState(false)
-  
-  const memoryUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/memory/${memoryId}`
-    : ""
+  const [loading, setLoading] = useState(true)
+  const [memoryUrl, setMemoryUrl] = useState("")
 
+  // Gera a URL da memória
   useEffect(() => {
-    if (memoryUrl) {
+    if (resolvedParams.id && typeof window !== 'undefined') {
+      const url = `${window.location.origin}/memory/${resolvedParams.id}`
+      setMemoryUrl(url)
+    }
+  }, [resolvedParams.id])
+
+  // Gera o QR Code
+  useEffect(() => {
+    if (memoryUrl && resolvedParams.id) {
       QRCode.toDataURL(memoryUrl, {
         width: 300,
         margin: 2,
@@ -27,21 +32,57 @@ export default function SuccessPage() {
           dark: '#06B6D4',
           light: '#FFFFFF'
         }
-      }).then(setQrCodeUrl)
+      })
+      .then(url => {
+        setQrCodeUrl(url)
+        setLoading(false)
+      })
+      .catch(error => {
+        console.error("Erro ao gerar QR Code:", error)
+        setLoading(false)
+      })
     }
-  }, [memoryUrl])
+  }, [memoryUrl, resolvedParams.id])
 
   const copyToClipboard = () => {
+    if (!memoryUrl) return
+    
     navigator.clipboard.writeText(memoryUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+      .catch(error => {
+        console.error("Erro ao copiar:", error)
+      })
   }
 
   const downloadQRCode = () => {
+    if (!qrCodeUrl) return
+    
     const link = document.createElement('a')
-    link.download = `memorylove-${memoryId}.png`
+    link.download = `memorylove-${resolvedParams.id}.png`
     link.href = qrCodeUrl
     link.click()
+  }
+
+  if (!resolvedParams.id) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center space-y-6 max-w-md mx-auto px-4">
+          <Heart className="w-16 h-16 text-red-400 mx-auto" />
+          <h1 className="text-2xl font-bold text-white">Erro ao carregar página</h1>
+          <p className="text-gray-400">
+            ID da lembrança não encontrado.
+          </p>
+          <Link href="/">
+            <Button className="bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white">
+              Voltar para Home
+            </Button>
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -69,7 +110,7 @@ export default function SuccessPage() {
         <div className="max-w-3xl mx-auto space-y-8">
           {/* Success Message */}
           <div className="text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-cyan-500 to-emerald-500 rounded-full mb-4 shadow-lg shadow-cyan-500/30">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-cyan-500 to-emerald-500 rounded-full mb-4 shadow-lg shadow-cyan-500/30 animate-bounce">
               <Check className="w-10 h-10 text-white" />
             </div>
             <h1 className="text-4xl font-bold text-white">
@@ -91,12 +132,18 @@ export default function SuccessPage() {
             <CardContent className="space-y-6">
               {/* QR Code Display */}
               <div className="flex justify-center">
-                {qrCodeUrl ? (
+                {loading ? (
+                  <div className="w-64 h-64 bg-white/10 rounded-2xl animate-pulse flex items-center justify-center">
+                    <p className="text-gray-400">Gerando QR Code...</p>
+                  </div>
+                ) : qrCodeUrl ? (
                   <div className="p-6 bg-white rounded-2xl shadow-lg">
                     <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64" />
                   </div>
                 ) : (
-                  <div className="w-64 h-64 bg-white/10 rounded-2xl animate-pulse" />
+                  <div className="w-64 h-64 bg-white/10 rounded-2xl flex items-center justify-center">
+                    <p className="text-gray-400">Erro ao gerar QR Code</p>
+                  </div>
                 )}
               </div>
 
@@ -106,7 +153,7 @@ export default function SuccessPage() {
                   onClick={downloadQRCode}
                   variant="outline"
                   className="w-full border-cyan-500 text-cyan-400 hover:bg-cyan-500/10"
-                  disabled={!qrCodeUrl}
+                  disabled={!qrCodeUrl || loading}
                 >
                   <Download className="w-4 h-4 mr-2" />
                   Baixar QR Code
@@ -115,6 +162,7 @@ export default function SuccessPage() {
                   onClick={copyToClipboard}
                   variant="outline"
                   className="w-full border-cyan-500 text-cyan-400 hover:bg-cyan-500/10"
+                  disabled={!memoryUrl}
                 >
                   {copied ? (
                     <>
@@ -134,12 +182,12 @@ export default function SuccessPage() {
               <div className="bg-white/5 border border-white/10 p-4 rounded-lg">
                 <p className="text-sm text-gray-400 mb-2">Seu link:</p>
                 <p className="text-sm font-mono break-all text-white">
-                  {memoryUrl}
+                  {memoryUrl || "Carregando..."}
                 </p>
               </div>
 
               {/* View Memory Button */}
-              <Link href={`/memory/${memoryId}`}>
+              <Link href={`/memory/${resolvedParams.id}`}>
                 <Button className="w-full bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white shadow-lg shadow-cyan-500/20">
                   <Heart className="w-4 h-4 mr-2" />
                   Ver Minha Lembrança

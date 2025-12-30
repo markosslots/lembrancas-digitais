@@ -11,6 +11,13 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { generateMemoryId, saveMemory } from "@/lib/memory-storage"
 
+const EMOJI_OPTIONS = [
+  "❤️", "💕", "💖", "💗", "💓", "💝", "💘", "💞",
+  "🌹", "🌺", "🌸", "🌼", "🌻", "🌷", "🏵️", "💐",
+  "⭐", "✨", "💫", "🌟", "🎉", "🎊", "🎈", "🎁",
+  "🦋", "🌈", "☀️", "🌙", "💎", "👑", "🎀", "🧸"
+]
+
 export default function CreateMemoryPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -20,6 +27,7 @@ export default function CreateMemoryPage() {
     photos: [] as string[],
     musicUrl: "",
     customSlug: "",
+    emoji: "❤️", // Emoji padrão
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -40,17 +48,23 @@ export default function CreateMemoryPage() {
     }
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     setIsSubmitting(true)
     
-    // Gera ID único ou usa slug customizado
-    const memoryId = formData.customSlug || generateMemoryId()
-    
-    // Salva a lembrança
-    await saveMemory(memoryId, formData)
-    
-    // Redireciona para página de sucesso com o ID
-    router.push(`/success/${memoryId}`)
+    try {
+      // Gera ID único ou usa slug customizado
+      const memoryId = formData.customSlug || generateMemoryId()
+      
+      // Salva a lembrança no localStorage
+      saveMemory(memoryId, formData)
+      
+      // Redireciona imediatamente para página de sucesso
+      window.location.href = `/success/${memoryId}`
+    } catch (error) {
+      console.error('Erro ao criar lembrança:', error)
+      setIsSubmitting(false)
+      alert('Erro ao criar lembrança. Tente novamente.')
+    }
   }
 
   const canProceed = () => {
@@ -107,7 +121,7 @@ export default function CreateMemoryPage() {
                 {step === 1 && "Escolha um título que represente esse momento especial"}
                 {step === 2 && "Selecione as fotos que fazem parte dessa lembrança"}
                 {step === 3 && "Expresse seus sentimentos e emoções"}
-                {step === 4 && "Adicione música e personalize o link"}
+                {step === 4 && "Adicione música, emoji e personalize o link"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -181,6 +195,30 @@ export default function CreateMemoryPage() {
               {/* Step 4: Personalização */}
               {step === 4 && (
                 <div className="space-y-6">
+                  {/* Seletor de Emoji */}
+                  <div>
+                    <Label className="text-white">Escolha um Emoji para Celebrar 🎉</Label>
+                    <p className="text-xs text-gray-400 mt-1 mb-3">
+                      Este emoji cairá como chuva quando sua lembrança estiver pronta!
+                    </p>
+                    <div className="grid grid-cols-8 gap-2 p-4 bg-white/5 border border-white/10 rounded-lg">
+                      {EMOJI_OPTIONS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, emoji })}
+                          className={`text-3xl p-2 rounded-lg transition-all hover:scale-110 ${
+                            formData.emoji === emoji
+                              ? 'bg-gradient-to-br from-cyan-500 to-emerald-500 shadow-lg scale-110'
+                              : 'bg-white/5 hover:bg-white/10'
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div>
                     <Label htmlFor="music" className="text-white">Música de Fundo (opcional)</Label>
                     <div className="flex gap-2 mt-2">
@@ -228,6 +266,10 @@ export default function CreateMemoryPage() {
                       <li className="flex items-center gap-2">
                         <Check className="w-4 h-4 text-emerald-400" />
                         Mensagem personalizada
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400" />
+                        Emoji de celebração: {formData.emoji}
                       </li>
                       {formData.musicUrl && (
                         <li className="flex items-center gap-2">

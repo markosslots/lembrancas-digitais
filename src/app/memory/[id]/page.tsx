@@ -1,29 +1,88 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { use, useEffect, useState } from "react"
 import { Heart, Music, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { getMemory, type Memory } from "@/lib/memory-storage"
 import { Button } from "@/components/ui/button"
 
-export default function MemoryPage() {
-  const params = useParams()
-  const memoryId = params.id as string
+interface FallingEmoji {
+  id: number
+  emoji: string
+  left: number
+  animationDuration: number
+  size: number
+  delay: number
+}
+
+export default function MemoryPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params)
   const [memory, setMemory] = useState<Memory | null>(null)
+  const [loading, setLoading] = useState(true)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
+  const [fallingEmojis, setFallingEmojis] = useState<FallingEmoji[]>([])
 
   useEffect(() => {
-    const loadedMemory = getMemory(memoryId)
-    setMemory(loadedMemory)
-  }, [memoryId])
+    try {
+      const loadedMemory = getMemory(resolvedParams.id)
+      setMemory(loadedMemory)
+    } catch (error) {
+      console.error("Erro ao carregar lembrança:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [resolvedParams.id])
 
-  if (!memory) {
+  // Gera emojis caindo continuamente quando a memória estiver carregada
+  useEffect(() => {
+    if (!memory?.emoji) return
+
+    const interval = setInterval(() => {
+      const newEmoji: FallingEmoji = {
+        id: Date.now() + Math.random(),
+        emoji: memory.emoji!,
+        left: Math.random() * 100,
+        animationDuration: 4 + Math.random() * 3, // 4-7 segundos
+        size: 25 + Math.random() * 25, // 25-50px
+        delay: 0,
+      }
+      
+      setFallingEmojis(prev => [...prev, newEmoji])
+      
+      // Remove emoji após a animação
+      setTimeout(() => {
+        setFallingEmojis(prev => prev.filter(e => e.id !== newEmoji.id))
+      }, (newEmoji.animationDuration + 0.5) * 1000)
+    }, 400) // Novo emoji a cada 400ms
+
+    return () => clearInterval(interval)
+  }, [memory?.emoji])
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center space-y-4">
           <Heart className="w-16 h-16 text-cyan-400 mx-auto animate-pulse" />
           <p className="text-xl text-gray-400">Carregando lembrança...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!memory) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center space-y-6 max-w-md mx-auto px-4">
+          <Heart className="w-16 h-16 text-red-400 mx-auto" />
+          <h1 className="text-2xl font-bold text-white">Lembrança não encontrada</h1>
+          <p className="text-gray-400">
+            Esta lembrança não existe ou foi removida.
+          </p>
+          <Link href="/">
+            <Button className="bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white">
+              Voltar para Home
+            </Button>
+          </Link>
         </div>
       </div>
     )
@@ -38,7 +97,26 @@ export default function MemoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black relative overflow-hidden">
+      {/* Emojis caindo - CHUVA DE EMOJIS */}
+      <div className="fixed inset-0 pointer-events-none z-10 overflow-hidden">
+        {fallingEmojis.map((item) => (
+          <div
+            key={item.id}
+            className="absolute"
+            style={{
+              left: `${item.left}%`,
+              top: '-80px',
+              fontSize: `${item.size}px`,
+              animation: `fall ${item.animationDuration}s linear forwards`,
+              opacity: 0.9,
+            }}
+          >
+            {item.emoji}
+          </div>
+        ))}
+      </div>
+
       {/* Floating Header */}
       <header className="fixed top-4 left-4 right-4 z-50">
         <div className="max-w-4xl mx-auto bg-white/5 backdrop-blur-sm border border-white/10 rounded-full px-6 py-3 shadow-lg flex items-center justify-between">
@@ -59,7 +137,7 @@ export default function MemoryPage() {
       </header>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 pt-24 pb-12">
+      <div className="container mx-auto px-4 pt-24 pb-12 relative z-20">
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Title */}
           <div className="text-center space-y-2">
@@ -73,6 +151,11 @@ export default function MemoryPage() {
                 year: 'numeric'
               })}
             </p>
+            {memory.emoji && (
+              <p className="text-sm text-cyan-400 animate-pulse">
+                {memory.emoji} Aproveite a chuva de emojis! {memory.emoji}
+              </p>
+            )}
           </div>
 
           {/* Photo Gallery */}
@@ -176,6 +259,22 @@ export default function MemoryPage() {
           <source src={memory.musicUrl} />
         </audio>
       )}
+
+      <style jsx>{`
+        @keyframes fall {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.8;
+          }
+          100% {
+            transform: translateY(calc(100vh + 100px)) rotate(360deg);
+            opacity: 0;
+          }
+        }
+      `}</style>
     </div>
   )
 }
